@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ochtend Briefing</title>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --bg2: #181818;
+    --bg3: #222;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #e8e8e8;
+    --text2: #999;
+    --text3: #555;
+    --accent: #e8e8e8;
+    --urgent: #E24B4A;
+    --info: #378ADD;
+    --mono: 'SF Mono', 'Fira Mono', 'Consolas', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+
+  #setup-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 24px;
+    padding: 32px;
+  }
+
+  #setup-screen h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+  #setup-screen p { font-size: 13px; color: var(--text2); max-width: 420px; text-align: center; line-height: 1.6; }
+
+  .setup-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border2);
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .setup-card label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .setup-card input {
+    background: var(--bg3);
+    border: 0.5px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: var(--mono);
+    color: var(--text);
+    width: 100%;
+    outline: none;
+  }
+  .setup-card input:focus { border-color: rgba(255,255,255,0.3); }
+
+  .btn-primary {
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: 8px;
+    padding: 11px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-google {
+    background: transparent;
+    border: 0.5px solid var(--border2);
+    border-radius: 8px;
+    padding: 11px 20px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background 0.15s;
+  }
+  .btn-google:hover { background: var(--bg3); }
+
+  #app {
+    display: none;
+    grid-template-columns: 280px 1fr;
+    height: 100vh;
+  }
+
+  #sidebar {
+    border-right: 0.5px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background: var(--bg2);
+  }
+
+  .sidebar-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .app-name { font-size: 12px; font-weight: 500; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .refresh-btn {
+    background: none;
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--text2);
+    cursor: pointer;
+  }
+  .refresh-btn:hover { border-color: var(--border2); color: var(--text); }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .weather-temp { font-size: 32px; font-weight: 400; font-family: var(--mono); color: var(--text); line-height: 1; }
+  .weather-desc { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .weather-meta { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 6px; line-height: 1.8; }
+
+  .agenda-item {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .agenda-item:last-child { border-bottom: none; }
+  .agenda-time { font-size: 11px; font-family: var(--mono); color: var(--text3); min-width: 38px; padding-top: 1px; }
+  .agenda-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); margin-top: 5px; flex-shrink: 0; }
+  .agenda-dot.soon { background: var(--urgent); }
+  .agenda-title { font-size: 12px; color: var(--text); line-height: 1.4; }
+  .agenda-loc { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  .mail-item {
+    padding: 8px 0;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .mail-item:last-child { border-bottom: none; }
+  .mail-from { font-size: 11px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .mail-subject { font-size: 11px; color: var(--text2); margin-top: 2px; line-height: 1.4; }
+  .mail-snippet { font-size: 10px; color: var(--text3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .urgent-badge { font-size: 9px; background: rgba(226,75,74,0.15); color: var(--urgent); padding: 1px 5px; border-radius: 4px; }
+
+  .news-item {
+    padding: 8px 0;
+    border-bottom: 0.5px solid var(--border);
+    cursor: pointer;
+    text-decoration: none;
+    display: block;
+  }
+  .news-item:last-child { border-bottom: none; }
+  .news-item:hover .news-headline { color: var(--text); }
+  .news-source { font-size: 9px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+  .news-headline { font-size: 11px; color: var(--text2); line-height: 1.4; margin-top: 2px; transition: color 0.1s; }
+
+  .status-text { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  #chat-area { display: flex; flex-direction: column; height: 100vh; }
+
+  #chat-header {
+    padding: 14px 18px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .chat-greeting { font-size: 16px; font-weight: 500; color: var(--text); }
+  .chat-date { font-size: 12px; color: var(--text3); font-family: var(--mono); margin-left: auto; }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .msg { display: flex; flex-direction: column; gap: 4px; max-width: 82%; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; }
+
+  .msg-bubble {
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .msg.user .msg-bubble {
+    background: var(--bg3);
+    color: var(--text);
+    border: 0.5px solid var(--border2);
+    border-bottom-right-radius: 3px;
+  }
+  .msg.assistant .msg-bubble {
+    background: var(--bg2);
+    color: var(--text);
+    border: 0.5px solid var(--border);
+    border-bottom-left-radius: 3px;
+  }
+  .msg-label { font-size: 10px; color: var(--text3); }
+
+  .quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 18px 10px;
+  }
+  .quick-btn {
+    font-size: 11px;
+    padding: 5px 11px;
+    border-radius: 20px;
+    border: 0.5px solid var(--border2);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .quick-btn:hover { background: var(--bg3); color: var(--text); }
+
+  #input-area {
+    padding: 12px 18px;
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  #user-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 0.5px solid var(--border2);
+    border-radius: 10px;
+    padding: 10px 13px;
+    font-size: 13px;
+    color: var(--text);
+    font-family: var(--sans);
+    resize: none;
+    min-height: 40px;
+    max-height: 120px;
+    outline: none;
+    line-height: 1.5;
+  }
+  #user-input:focus { border-color: rgba(255,255,255,0.25); }
+  #user-input::placeholder { color: var(--text3); }
+
+  #send-btn {
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    align-self: flex-end;
+    transition: opacity 0.15s;
+  }
+  #send-btn:hover { opacity: 0.85; }
+
+  .loading-dots::after {
+    content: '...';
+    animation: dots 1s steps(4,end) infinite;
+  }
+  @keyframes dots {
+    0%,20%{content:'.'} 40%{content:'..'} 60%,100%{content:'...'}
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  #user-avatar { font-size: 11px; color: var(--text3); }
+</style>
+</head>
+<body>
+
+<!-- Setup scherm -->
+<div id="setup-screen">
+  <h1>Ochtend Briefing</h1>
+  <p>Vul je Anthropic API key in en koppel je Google-account om te beginnen.</p>
+
+  <div class="setup-card">
+    <label>Anthropic API Key</label>
+    <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off">
+
+    <label style="margin-top:4px">Locatie (voor weer)</label>
+    <input type="text" id="location-input" placeholder="Enschede" value="Enschede">
+
+    <button class="btn-primary" id="save-key-btn" onclick="saveSetup()">Opslaan</button>
+  </div>
+
+  <div class="setup-card" id="google-card" style="display:none">
+    <label>Google Account</label>
+    <p style="font-size:12px;color:var(--text2);line-height:1.5">Koppel je Google-account voor agenda en Gmail.</p>
+    <button class="btn-google" onclick="startGoogleAuth()">
+      <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Inloggen met Google
+    </button>
+    <div id="google-status" class="status-text"></div>
+    <button class="btn-primary" id="start-btn" onclick="startApp()" style="display:none">Start briefing →</button>
+  </div>
+</div>
+
+<!-- Hoofdapp -->
+<div id="app">
+  <div id="sidebar">
+    <div class="sidebar-top">
+      <span class="app-name">Briefing</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span id="user-avatar"></span>
+        <button class="refresh-btn" onclick="refreshAll()">↻ Vernieuwen</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Weer</div>
+      <div id="weather-block"><div class="status-text">Ophalen...</div></div>
+    </div>
+
+    <div>
+      <div class="section-label">Agenda vandaag</div>
+      <div id="agenda-block"><div class="status-text">Ophalen...</div></div>
+    </div>
+
+    <div>
+      <div class="section-label">Gmail <span id="mail-count"></span></div>
+      <div id="mail-block"><div class="status-text">Ophalen...</div></div>
+    </div>
+
+    <div>
+      <div class="section-label">Nieuws</div>
+      <div id="news-block"><div class="status-text">Ophalen...</div></div>
+    </div>
+  </div>
+
+  <div id="chat-area">
+    <div id="chat-header">
+      <span class="chat-greeting">Goedemorgen</span>
+      <span class="chat-date" id="chat-date"></span>
+    </div>
+
+    <div id="messages"></div>
+
+    <div class="quick-actions">
+      <button class="quick-btn" onclick="quickSend('Geef me een samenvatting van mijn dag')">Dagoverzicht ↗</button>
+      <button class="quick-btn" onclick="quickSend('Welke mails vragen om actie vandaag?')">Mail acties ↗</button>
+      <button class="quick-btn" onclick="quickSend('Wat zijn de belangrijkste nieuwsitems vandaag?')">Nieuws ↗</button>
+      <button class="quick-btn" onclick="quickSend('Wat moet ik vandaag prioriteren?')">Prioriteiten ↗</button>
+    </div>
+
+    <div id="input-area">
+      <textarea id="user-input" placeholder="Stel een vraag over je dag..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+      <button id="send-btn" onclick="sendMessage()">Stuur</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const GOOGLE_CLIENT_ID = '969754093725-j0qrk041b0of9irvdec44uqd12r7bmvo.apps.googleusercontent.com';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly profile email';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+let ANTHROPIC_KEY = '';
+let googleToken = null;
+let userEmail = '';
+let weatherData = null;
+let calItems = [];
+let mailItems = [];
+let newsItems = [];
+let conversationHistory = [];
+let isLoading = false;
+let readyCount = 0;
+let openingDone = false;
+
+const now = new Date();
+const days = ['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag'];
+const months = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+
+function formatDate(d) { return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function saveSetup() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key.startsWith('sk-ant-')) { alert('Voer een geldige Anthropic API key in.'); return; }
+  ANTHROPIC_KEY = key;
+  localStorage.setItem('mb_api_key', key);
+  localStorage.setItem('mb_location', document.getElementById('location-input').value.trim() || 'Enschede');
+  document.getElementById('google-card').style.display = 'block';
+  document.getElementById('save-key-btn').textContent = 'Opgeslagen ✓';
+  document.getElementById('save-key-btn').disabled = true;
+}
+
+function startGoogleAuth() {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: GOOGLE_SCOPES,
+    callback: (resp) => {
+      if (resp.error) { document.getElementById('google-status').textContent = 'Fout: ' + resp.error; return; }
+      googleToken = resp.access_token;
+      localStorage.setItem('mb_google_token', googleToken);
+      fetchUserProfile();
+    }
+  });
+  client.requestAccessToken();
+}
+
+async function fetchUserProfile() {
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: 'Bearer ' + googleToken }
+    });
+    const d = await r.json();
+    userEmail = d.email || '';
+    const name = d.given_name || userEmail;
+    document.getElementById('google-status').textContent = '✓ Ingelogd als ' + userEmail;
+    document.getElementById('start-btn').style.display = 'block';
+  } catch(e) {
+    document.getElementById('google-status').textContent = 'Profiel ophalen mislukt';
+  }
+}
+
+function startApp() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'grid';
+  document.getElementById('chat-date').textContent = formatDate(now);
+  if (userEmail) document.getElementById('user-avatar').textContent = userEmail.split('@')[0];
+  initApp();
+}
+
+function checkReady() {
+  readyCount++;
+  if (readyCount >= 4 && !openingDone) { openingDone = true; sendOpeningMessage(); }
+}
+
+async function initApp() {
+  fetchWeather();
+  fetchCalendar();
+  fetchGmail();
+  fetchAllNews();
+}
+
+async function refreshAll() {
+  readyCount = 0; openingDone = false; calItems = []; mailItems = []; newsItems = []; weatherData = null;
+  document.getElementById('weather-block').innerHTML = '<div class="status-text">Ophalen...</div>';
+  document.getElementById('agenda-block').innerHTML = '<div class="status-text">Ophalen...</div>';
+  document.getElementById('mail-block').innerHTML = '<div class="status-text">Ophalen...</div>';
+  document.getElementById('news-block').innerHTML = '<div class="status-text">Ophalen...</div>';
+  initApp();
+}
+
+function wmoCodes(c) {
+  const m={0:'Helder',1:'Overwegend helder',2:'Deels bewolkt',3:'Bewolkt',45:'Mist',51:'Lichte motregen',53:'Motregen',61:'Lichte regen',63:'Regen',65:'Zware regen',80:'Regenbuien',81:'Buien',95:'Onweer'};
+  return m[c]||'Wisselvallig';
+}
+
+async function fetchWeather() {
+  const location = localStorage.getItem('mb_location') || 'Enschede';
+  const coords = { 'Enschede': [52.2215, 6.8937], 'Amsterdam': [52.3676, 4.9041], 'Utrecht': [52.0907, 5.1214], 'Den Haag': [52.0705, 4.3007] };
+  const [lat, lon] = coords[location] || [52.2215, 6.8937];
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe/Amsterdam&forecast_days=1`);
+    const d = await r.json();
+    const c = d.current;
+    weatherData = { temp: Math.round(c.temperature_2m), feels: Math.round(c.apparent_temperature), desc: wmoCodes(c.weather_code), wind: Math.round(c.wind_speed_10m), max: Math.round(d.daily.temperature_2m_max[0]), min: Math.round(d.daily.temperature_2m_min[0]), rain: d.daily.precipitation_probability_max[0], location };
+    document.getElementById('weather-block').innerHTML = `
+      <div class="weather-temp">${weatherData.temp}°C</div>
+      <div class="weather-desc">${weatherData.desc}</div>
+      <div class="weather-meta">Voelt als ${weatherData.feels}°C<br>Wind ${weatherData.wind} km/u<br>Min ${weatherData.min}° / Max ${weatherData.max}°<br>Neerslagkans ${weatherData.rain}%</div>
+    `;
+  } catch(e) {
+    document.getElementById('weather-block').innerHTML = '<div class="status-text">Niet beschikbaar</div>';
+  }
+  checkReady();
+}
+
+async function fetchCalendar() {
+  if (!googleToken) { document.getElementById('agenda-block').innerHTML = '<div class="status-text">Niet gekoppeld</div>'; checkReady(); return; }
+  try {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(start)}&timeMax=${encodeURIComponent(end)}&singleEvents=true&orderBy=startTime&maxResults=15`;
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + googleToken } });
+    if (r.status === 401) { handleTokenExpired(); return; }
+    const d = await r.json();
+    const events = d.items || [];
+    if (!events.length) { document.getElementById('agenda-block').innerHTML = '<div class="status-text">Geen afspraken vandaag</div>'; checkReady(); return; }
+    const nowMin = now.getHours()*60 + now.getMinutes();
+    calItems = events.map(e => {
+      const startDT = e.start?.dateTime || e.start?.date || '';
+      const t = startDT.includes('T') ? new Date(startDT).toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'}) : 'Hele dag';
+      return { time: t, title: e.summary || '(geen titel)', location: e.location || '', startDT };
+    });
+    document.getElementById('agenda-block').innerHTML = calItems.map(item => {
+      let soon = false;
+      if (item.time && item.time !== 'Hele dag') {
+        const [h,m] = item.time.split(':').map(Number);
+        const diff = (h*60+m) - nowMin;
+        soon = diff >= 0 && diff <= 30;
+      }
+      return `<div class="agenda-item">
+        <div class="agenda-dot ${soon?'soon':''}"></div>
+        <div class="agenda-time">${esc(item.time)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="agenda-title">${esc(item.title)}</div>
+          ${item.location ? `<div class="agenda-loc">${esc(item.location)}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('agenda-block').innerHTML = '<div class="status-text">Fout bij ophalen</div>';
+  }
+  checkReady();
+}
+
+async function fetchGmail() {
+  if (!googleToken) { document.getElementById('mail-block').innerHTML = '<div class="status-text">Niet gekoppeld</div>'; checkReady(); return; }
+  try {
+    const query = 'is:unread newer_than:1d -category:promotions -category:social -label:spam -from:noreply -from:no-reply';
+    const listUrl = `https://www.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=8`;
+    const listR = await fetch(listUrl, { headers: { Authorization: 'Bearer ' + googleToken } });
+    if (listR.status === 401) { handleTokenExpired(); return; }
+    const listD = await listR.json();
+    const messages = listD.messages || [];
+    if (!messages.length) { document.getElementById('mail-block').innerHTML = '<div class="status-text">Geen nieuwe mail</div>'; checkReady(); return; }
+
+    const details = await Promise.all(messages.slice(0,6).map(async msg => {
+      const r = await fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`, { headers: { Authorization: 'Bearer ' + googleToken } });
+      return r.json();
+    }));
+
+    mailItems = details.map(d => {
+      const headers = d.payload?.headers || [];
+      const from = headers.find(h=>h.name==='From')?.value || '—';
+      const subject = headers.find(h=>h.name==='Subject')?.value || '(geen onderwerp)';
+      const snippet = d.snippet || '';
+      const fromClean = from.replace(/<[^>]+>/,'').replace(/"/g,'').trim();
+      return { from: fromClean, subject, snippet };
+    });
+
+    document.getElementById('mail-count').textContent = mailItems.length ? `(${mailItems.length})` : '';
+    document.getElementById('mail-block').innerHTML = mailItems.map(m => `
+      <div class="mail-item">
+        <div class="mail-from">${esc(m.from)}</div>
+        <div class="mail-subject">${esc(m.subject)}</div>
+        ${m.snippet ? `<div class="mail-snippet">${esc(m.snippet)}</div>` : ''}
+      </div>
+    `).join('');
+  } catch(e) {
+    document.getElementById('mail-block').innerHTML = '<div class="status-text">Fout bij ophalen</div>';
+  }
+  checkReady();
+}
+
+function handleTokenExpired() {
+  googleToken = null;
+  localStorage.removeItem('mb_google_token');
+  document.getElementById('agenda-block').innerHTML = '<div class="status-text">Sessie verlopen — herlaad pagina</div>';
+  document.getElementById('mail-block').innerHTML = '<div class="status-text">Sessie verlopen — herlaad pagina</div>';
+  checkReady(); checkReady();
+}
+
+const RSS_FEEDS = [
+  { name: 'NU.nl', url: 'https://www.nu.nl/rss/Algemeen' },
+  { name: 'NRC', url: 'https://www.nrc.nl/rss/' },
+  { name: 'FD', url: 'https://fd.nl/rss' }
+];
+
+async function fetchRSS(feed) {
+  try {
+    const r = await fetch(CORS_PROXY + encodeURIComponent(feed.url));
+    const xml = new DOMParser().parseFromString(await r.text(), 'text/xml');
+    return Array.from(xml.querySelectorAll('item')).slice(0,4).map(item => ({
+      source: feed.name,
+      title: item.querySelector('title')?.textContent?.trim() || '',
+      link: item.querySelector('link')?.textContent?.trim() || ''
+    }));
+  } catch(e) { return []; }
+}
+
+async function fetchAllNews() {
+  const results = await Promise.all(RSS_FEEDS.map(fetchRSS));
+  newsItems = results.flat().filter(i => i.title);
+  const block = document.getElementById('news-block');
+  if (!newsItems.length) { block.innerHTML = '<div class="status-text">Feeds niet beschikbaar</div>'; checkReady(); return; }
+  block.innerHTML = newsItems.slice(0,8).map(i => `
+    <a class="news-item" href="${esc(i.link)}" target="_blank" rel="noopener">
+      <div class="news-source">${esc(i.source)}</div>
+      <div class="news-headline">${esc(i.title)}</div>
+    </a>
+  `).join('');
+  checkReady();
+}
+
+function buildSystemPrompt() {
+  const timeStr = now.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+  const weatherStr = weatherData
+    ? `${weatherData.temp}°C, ${weatherData.desc}, voelt als ${weatherData.feels}°C, wind ${weatherData.wind} km/u, max ${weatherData.max}°, neerslagkans ${weatherData.rain}%`
+    : 'Niet beschikbaar';
+  const calStr = calItems.length
+    ? calItems.map(i=>`${i.time} ${i.title}${i.location?' ('+i.location+')':''}`).join('\n')
+    : 'Geen afspraken';
+  const mailStr = mailItems.length
+    ? mailItems.map(m=>`Van: ${m.from} | ${m.subject}`).join('\n')
+    : 'Geen nieuwe mail';
+  const newsStr = newsItems.length
+    ? newsItems.slice(0,8).map(i=>`[${i.source}] ${i.title}`).join('\n')
+    : 'Niet beschikbaar';
+
+  return `Je bent de persoonlijke ochtend-assistent van LLWYD. Vandaag: ${formatDate(now)}, ${timeStr}.
+
+WEER: ${weatherStr}
+
+AGENDA VANDAAG:
+${calStr}
+
+ONGELEZEN MAIL (geen reclame):
+${mailStr}
+
+NIEUWS:
+${newsStr}
+
+INSTRUCTIES:
+- Spreek LLWYD direct en informeel aan
+- Wees concreet en beknopt — geen opvulling
+- Signaleer urgente mails, agenda-conflicten of opvallend nieuws proactief
+- Gebruik bullets of korte alinea's
+- Altijd in het Nederlands`;
+}
+
+function addMessage(role, text) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `<div class="msg-label">${role==='user'?'Jij':'Assistent'}</div><div class="msg-bubble">${esc(text).replace(/\n/g,'<br>')}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addLoading() {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg assistant'; div.id = 'loading-msg';
+  div.innerHTML = '<div class="msg-label">Assistent</div><div class="msg-bubble"><span class="loading-dots"></span></div>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function removeLoading() { document.getElementById('loading-msg')?.remove(); }
+
+async function callClaude(messages) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1000, system: buildSystemPrompt(), messages })
+  });
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.content?.find(b=>b.type==='text')?.text || 'Geen antwoord.';
+}
+
+async function sendOpeningMessage() {
+  addLoading();
+  try {
+    const prompt = 'Geef een korte, persoonlijke ochtendbegroeting met de highlights van mijn dag: weer, agenda, eventuele urgente mail en opvallend nieuws. Max 120 woorden.';
+    const reply = await callClaude([{role:'user',content:prompt}]);
+    removeLoading();
+    addMessage('assistant', reply);
+    conversationHistory.push({role:'user',content:prompt});
+    conversationHistory.push({role:'assistant',content:reply});
+  } catch(e) {
+    removeLoading();
+    addMessage('assistant', 'Goedemorgen! Gebruik de knoppen hieronder of stel een vraag. (Fout: ' + e.message + ')');
+  }
+}
+
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+  addMessage('user', text);
+  conversationHistory.push({role:'user',content:text});
+  isLoading = true; addLoading();
+  try {
+    const reply = await callClaude(conversationHistory);
+    removeLoading();
+    addMessage('assistant', reply);
+    conversationHistory.push({role:'assistant',content:reply});
+  } catch(e) {
+    removeLoading();
+    addMessage('assistant', 'Er ging iets mis: ' + e.message);
+  }
+  isLoading = false;
+}
+
+function quickSend(text) {
+  document.getElementById('user-input').value = text;
+  sendMessage();
+}
+
+window.addEventListener('load', () => {
+  const savedKey = localStorage.getItem('mb_api_key');
+  const savedToken = localStorage.getItem('mb_google_token');
+  const savedLocation = localStorage.getItem('mb_location');
+  if (savedKey) {
+    ANTHROPIC_KEY = savedKey;
+    document.getElementById('api-key-input').value = savedKey;
+    if (savedLocation) document.getElementById('location-input').value = savedLocation;
+    document.getElementById('save-key-btn').textContent = 'Opgeslagen ✓';
+    document.getElementById('save-key-btn').disabled = true;
+    document.getElementById('google-card').style.display = 'block';
+  }
+  if (savedKey && savedToken) {
+    googleToken = savedToken;
+    ANTHROPIC_KEY = savedKey;
+    fetchUserProfile().then(() => startApp());
+  }
+});
+</script>
+</body>
+</html>
