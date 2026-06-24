@@ -548,8 +548,8 @@ async function fetchCalendar() {
 async function fetchGmail() {
   if (!googleToken) { document.getElementById('mail-block').innerHTML = '<div class="status-text">Niet gekoppeld</div>'; checkReady(); return; }
   try {
-    const query = 'in:inbox is:unread -category:promotions -category:social';
-    const listUrl = `https://www.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=8`;
+    const query = 'in:inbox category:primary is:unread';
+    const listUrl = `https://www.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=10`;
     const listR = await fetch(listUrl, { headers: { Authorization: 'Bearer ' + googleToken } });
     if (listR.status === 401) { handleTokenExpired(); return; }
     const listD = await listR.json();
