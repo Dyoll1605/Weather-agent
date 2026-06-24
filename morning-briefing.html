@@ -9,17 +9,17 @@
 
 <style>
   :root {
-    --bg: #0f0f0f;
-    --bg2: #181818;
-    --bg3: #222;
-    --border: rgba(255,255,255,0.08);
-    --border2: rgba(255,255,255,0.15);
-    --text: #e8e8e8;
-    --text2: #999;
-    --text3: #555;
-    --accent: #e8e8e8;
-    --urgent: #E24B4A;
-    --info: #378ADD;
+    --bg: #f5f5f0;
+    --bg2: #ffffff;
+    --bg3: #eeeee9;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(0,0,0,0.15);
+    --text: #1a1a1a;
+    --text2: #555;
+    --text3: #999;
+    --accent: #1a1a1a;
+    --urgent: #c0392b;
+    --info: #2471a3;
     --mono: 'SF Mono', 'Fira Mono', 'Consolas', monospace;
     --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
@@ -487,23 +487,51 @@ function wmoCodes(c) {
 }
 
 async function fetchWeather() {
-  const location = localStorage.getItem('mb_location') || 'Enschede';
-  const coords = { 'Enschede': [52.2215, 6.8937], 'Amsterdam': [52.3676, 4.9041], 'Utrecht': [52.0907, 5.1214], 'Den Haag': [52.0705, 4.3007] };
-  const [lat, lon] = coords[location] || [52.2215, 6.8937];
-  try {
-    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe/Amsterdam&forecast_days=1`);
-    const d = await r.json();
-    const c = d.current;
-    weatherData = { temp: Math.round(c.temperature_2m), feels: Math.round(c.apparent_temperature), desc: wmoCodes(c.weather_code), wind: Math.round(c.wind_speed_10m), max: Math.round(d.daily.temperature_2m_max[0]), min: Math.round(d.daily.temperature_2m_min[0]), rain: d.daily.precipitation_probability_max[0], location };
-    document.getElementById('weather-block').innerHTML = `
-      <div class="weather-temp">${weatherData.temp}°C</div>
-      <div class="weather-desc">${weatherData.desc}</div>
-      <div class="weather-meta">Voelt als ${weatherData.feels}°C<br>Wind ${weatherData.wind} km/u<br>Min ${weatherData.min}° / Max ${weatherData.max}°<br>Neerslagkans ${weatherData.rain}%</div>
-    `;
-  } catch(e) {
-    document.getElementById('weather-block').innerHTML = '<div class="status-text">Niet beschikbaar</div>';
+  document.getElementById('weather-block').innerHTML = '<div class="status-text">Locatie bepalen...</div>';
+  
+  function loadWeather(lat, lon, locationName) {
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1`)
+      .then(r => r.json())
+      .then(d => {
+        const c = d.current;
+        weatherData = { temp: Math.round(c.temperature_2m), feels: Math.round(c.apparent_temperature), desc: wmoCodes(c.weather_code), wind: Math.round(c.wind_speed_10m), max: Math.round(d.daily.temperature_2m_max[0]), min: Math.round(d.daily.temperature_2m_min[0]), rain: d.daily.precipitation_probability_max[0], location: locationName };
+        document.getElementById('weather-block').innerHTML = `
+          <div class="weather-temp">${weatherData.temp}°C</div>
+          <div class="weather-desc">${weatherData.desc}</div>
+          <div class="weather-meta">${locationName}<br>Voelt als ${weatherData.feels}°C · Wind ${weatherData.wind} km/u<br>Min ${weatherData.min}° / Max ${weatherData.max}° · Regen ${weatherData.rain}%</div>
+        `;
+        checkReady();
+      })
+      .catch(() => {
+        document.getElementById('weather-block').innerHTML = '<div class="status-text">Weer niet beschikbaar</div>';
+        checkReady();
+      });
   }
-  checkReady();
+
+  function reverseGeocode(lat, lon) {
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
+      .then(r => r.json())
+      .then(d => {
+        const city = d.address?.city || d.address?.town || d.address?.village || d.address?.municipality || 'Huidige locatie';
+        loadWeather(lat, lon, city);
+      })
+      .catch(() => loadWeather(lat, lon, 'Huidige locatie'));
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => reverseGeocode(pos.coords.latitude, pos.coords.longitude),
+      () => {
+        const fallback = localStorage.getItem('mb_location') || 'Enschede';
+        const coords = { 'Enschede': [52.2215, 6.8937], 'Amsterdam': [52.3676, 4.9041], 'Utrecht': [52.0907, 5.1214] };
+        const [lat, lon] = coords[fallback] || [52.2215, 6.8937];
+        loadWeather(lat, lon, fallback);
+      },
+      { timeout: 8000 }
+    );
+  } else {
+    loadWeather(52.2215, 6.8937, 'Enschede');
+  }
 }
 
 async function fetchCalendar() {
